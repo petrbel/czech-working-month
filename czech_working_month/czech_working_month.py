@@ -1,75 +1,81 @@
-from czech_holidays import Holiday, Holidays
-from tabulate import tabulate
-
 import argparse
 import datetime
-import math
-from typing import Optional, Iterable
+from enum import Enum
+
+import pandas as pd
+
+from .utils.date import get_national_holiday, date_range
 
 
-def _date_range(start: datetime.date, end: datetime.date, step=datetime.timedelta(1)) -> Iterable[datetime.date]:
-    """Generator providing dates between the start date (inclusive) and the end date (exclusive)."""
-    curr = start
-    while curr < end:
-        yield curr
-        curr += step
+class DayType(Enum):
+    BUSINESS_DAY = 0
+    WEEKEND = 1
+    HOLIDAY = 2
+
+    def to_string(self) -> str:
+        if self == DayType.BUSINESS_DAY:
+            return 'Business day'
+        elif self == DayType.WEEKEND:
+            return 'Weekend'
+        elif self == DayType.HOLIDAY:
+            return 'National Holiday'
+        else:
+            raise ValueError('Unknown day type.')
 
 
-def _get_national_holiday(day: datetime.date) -> Optional[Holiday]:
-    """
-    For a given date, return the national holiday object if the particular date is a Czech national holiday;
-    return None otherwise
-    """
-    for holiday in Holidays(year=day.year):
-        if day == holiday:
-            return holiday
-    return None
+class CzechWorkingMonth:
+    def __init__(self, day: int, month: int, year: int, hours_per_day: int=8, part_time_ratio: float=1.0):
+        self.day = day
+        self.month = month
+        self.year = year
+        self.hours_per_day = hours_per_day
+        self.part_time_ratio = part_time_ratio
 
+        # compute data
+        self.data = self._compute_data()
 
-def show_working_month(day: int, month: int, year: int, hours_per_day: int, part_time_ratio: float) -> None:
-    """Show overall month statistics."""
-    next_month = month + 1 if month < 12 else 1
-    next_year = year if month < 12 else year + 1
+        # regular
+        self.business_days = len(self.data[self.data['day_type'] == DayType.BUSINESS_DAY])
+        self.business_hours = self.business_days * hours_per_day
 
-    total_working_days = 0
-    total_working_days_till_today = 0
-    message = []
-    for i, _day in enumerate(_date_range(datetime.date(year, month, 1), datetime.date(next_year, next_month, 1))):
-        is_weekend = _day.weekday() > 4
-        holiday = _get_national_holiday(_day)
+        # part-time
+        self.business_days_part_time = self.business_days * part_time_ratio
+        self.business_hours_part_time = self.business_hours * part_time_ratio
 
-        day_type = 'working _day'
-        if holiday is not None:
-            day_type = 'National holiday: {}'.format(holiday.name_en)
-        elif is_weekend:
-            day_type = 'weekend'
-        message.append([_day, day_type])
+        # regular till now
+        self.business_days_passed = len(self.data[self.data['day_type'] == DayType.BUSINESS_DAY][self.data['date'] < datetime.datetime.now().date()])
+        self.business_hours_passed = self.business_days_passed * hours_per_day
+        self.business_hours_remaining = self.business_hours - self.business_hours_passed
 
-        if is_weekend or holiday is not None:
-            continue
+        # part-time till now
+        self.business_hours_part_time_passed = self.business_hours_passed * part_time_ratio
+        self.business_hours_part_time_remaining = self.business_hours_part_time - self.business_hours_part_time_passed
 
-        total_working_days += 1
-        if i < day:
-            total_working_days_till_today += 1
+    def _compute_data(self) -> pd.DataFrame:
+        """Compute month statistics."""
+        next_month = self.month + 1 if self.month < 12 else 1
+        next_year = self.year if self.month < 12 else self.year + 1
 
-    print(tabulate(message, headers=['date', '_day type']))
-    print()
-    print('----------------------')
-    print('Total working days: {}'.format(total_working_days))
-    print('Full-time working hours: {}'.format(total_working_days * hours_per_day))
-    print('Total working days (until today inclusive): {}'.format(total_working_days_till_today))
-    print('Full-time working hours: {}'.format(total_working_days_till_today * hours_per_day))
+        data = pd.DataFrame()
 
-    if not math.isclose(part_time_ratio, 1.0, abs_tol=0.001):
-        part_time_hours = int(total_working_days * hours_per_day * part_time_ratio)
-        part_time_hours_till_today = int(total_working_days_till_today * hours_per_day * part_time_ratio)
+        for day_num, date in enumerate(date_range(datetime.date(self.year, self.month, 1),
+                                                  datetime.date(next_year, next_month, 1)),
+                                       1):
+            is_weekend = date.weekday() > 4
+            holiday = get_national_holiday(date)
 
-        print('{}-time working hours: {} (i.e. ~{:.2f} {}-hours days)'.format(part_time_ratio,
-                                                                              part_time_hours,
-                                                                              part_time_hours/hours_per_day,
-                                                                              hours_per_day))
-        print('{}-time working hours: {} (i.e. ~{:.2f} {}-hours days) (until today inclusive)'.format(
-            part_time_ratio, part_time_hours_till_today, part_time_hours_till_today / hours_per_day, hours_per_day))
+            if holiday is not None:
+                data = data.append({'date': date, 'day_type': DayType.HOLIDAY, 'note': holiday.name_en},
+                                   ignore_index=True)
+            elif is_weekend:
+                data = data.append({'date': date, 'day_type': DayType.WEEKEND,
+                                    'note': ('Saturday' if date.weekday() == 5 else 'Sunday')},
+                                   ignore_index=True)
+            else:
+                data = data.append({'date': date, 'day_type': DayType.BUSINESS_DAY, 'note': ''},
+                                   ignore_index=True)
+
+        return data
 
 
 def main():
@@ -88,11 +94,28 @@ def main():
     current_month = args.month or today.month
     current_year = args.year or today.year
 
-    show_working_month(day=current_day,
-                       month=current_month,
-                       year=current_year,
-                       hours_per_day=args.day_length,
-                       part_time_ratio=args.part_time_ratio)
+    cwm = CzechWorkingMonth(current_day, current_month, current_year, 8, 0.6)
+
+    print(cwm.data)
+    print('========================')
+    print('Full-time')
+    print('========================')
+    print(f'> Total number of business days: {cwm.business_days}')
+    print(f'> Total number of business hours: {cwm.business_hours}')
+    print(f'> Number of passed business days (until today, exclusive): {cwm.business_days_passed}')
+    print(f'> Number of passed business hours (until today, exclusive): {cwm.business_hours_passed}')
+    print(f'> Number of remaining business hours (including today): {cwm.business_hours_remaining}')
+    print()
+    print('========================')
+    print(f'Part-time ({cwm.part_time_ratio}x)')
+    print('========================')
+    print(f'> Total number of full {cwm.hours_per_day}-hours business days: {cwm.business_days_part_time}')
+    print(f'> Total number of business hours: {cwm.business_hours_part_time}')
+    print(f'> Number of passed business hours (until today, exclusive): {cwm.business_hours_part_time_passed}')
+    print(f'> Number of remaining business hours (including today): {cwm.business_hours_part_time_remaining}')
+
 
 if __name__ == '__main__':
+    pd.set_option("display.max_rows", 40)
+    pd.set_option('expand_frame_repr', False)
     main()

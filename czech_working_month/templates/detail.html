@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<!--[if IE 7]> <html lang="cs" class="ie7"> <![endif]-->	
+<!--[if IE 8]> <html lang="cs" class="ie8"> <![endif]-->	
+<!--[if IE 9]> <html lang="cs" class="ie9"> <![endif]-->	
+<!--[if !IE]><!--> <html lang="en"> <!--<![endif]-->	
+<head>
+	<title>Czech Working Month</title>
+
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+	<meta name="description" content="Czech Working Month">
+	<meta name="keywords" content="" />
+	<meta name="author" content="Petr Bělohlávek">
+	<meta name="robots" content="ALL,FOLLOW" />
+</head>
+
+<body>
+    <h1>Czech Working Month - Detail of {{cwm.month}}/{{cwm.year}}</h1>
+    <p><a href="/">Back to related months</a></p>
+
+    <h2>Summary</h2>
+
+	<table>
+		<tr>
+			<th></th>
+			<th>Full-time</th>
+			<th>{{cwm.part_time_ratio}}x part-time</th>
+		</tr>
+		<tr>
+			<th>Total number of full {{cwm.hours_per_day}}-hours business days</th>
+			<td>{{cwm.business_days}}</td>
+			<td>{{cwm.business_days_part_time}}</td>
+		</tr>
+		<tr>
+			<th>Total number of business hours</th>
+			<td>{{cwm.business_hours}}</td>
+			<td>{{cwm.business_hours_part_time}}</td>
+		</tr>
+	</table>
+
+
+    <h2>Data</h2>
+    {{cwm.data.to_html() | safe}}
+
+</body>
+</html>	

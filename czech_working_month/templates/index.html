@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<!--[if IE 7]> <html lang="cs" class="ie7"> <![endif]-->	
+<!--[if IE 8]> <html lang="cs" class="ie8"> <![endif]-->	
+<!--[if IE 9]> <html lang="cs" class="ie9"> <![endif]-->	
+<!--[if !IE]><!--> <html lang="en"> <!--<![endif]-->	
+<head>
+	<title>Czech Working Month</title>
+
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+	<meta name="description" content="Czech Working Month">
+	<meta name="keywords" content="" />
+	<meta name="author" content="Petr Bělohlávek">
+	<meta name="robots" content="ALL,FOLLOW" />
+</head>
+
+<body>
+    <h1>Czech Working Month - Relevant Months</h1>
+
+    <ul>
+    {% for month, year in year_months %}
+        <li><a href="/detail/{{ month }}/{{ year }}">Detail of {{ month }}/{{ year }}</a></li>
+    {% endfor %}
+    </ul>
+</body>
+</html>	
